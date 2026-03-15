@@ -1,0 +1,1307 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1e2428">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FieldConnex">
+<meta name="description" content="Guia de diagnóstico de campo para DM-AM · FF H1 e PROFIBUS PA · Pepperl+Fuchs">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<title>FieldConnex Diagnóstico</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+:root {
+  /* ── Fundo IEC 62682 / Siemens-style ── */
+  --bg:       #1e2428;
+  --bg2:      #252d33;
+  --bg3:      #2b3540;
+  --bg4:      #303d48;
+  --surface:  #3a4855;
+  --border:   rgba(255,255,255,0.09);
+  --border2:  rgba(255,255,255,0.16);
+
+  /* ── Status IEC 62682 (dessaturados, não neon) ── */
+  --green:    #3cb371;   /* Normal / OK */
+  --green2:   #2e8b57;
+  --green-bg: rgba(60,179,113,0.12);
+
+  --amber:    #d4a017;   /* Anormal / Atenção */
+  --amber-bg: rgba(212,160,23,0.12);
+
+  --red:      #cc3333;   /* Alarme / Crítico */
+  --red-bg:   rgba(204,51,51,0.12);
+
+  --blue:     #4a90d9;   /* Informação */
+  --blue-bg:  rgba(74,144,217,0.12);
+
+  /* ── Texto ── */
+  --text:     #d6e4ea;   /* texto principal — branco suave, não puro */
+  --text2:    #8fa8b4;   /* secundário */
+  --text3:    #5a7585;   /* dica/inativo */
+
+  --mono:     'IBM Plex Mono', monospace;
+  --sans:     'DM Sans', system-ui, sans-serif;
+  --nav-h:    64px;
+  --safe-b:   env(safe-area-inset-bottom, 0px);
+}
+
+html, body {
+  height: 100%; width: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  overflow: hidden;
+}
+
+/* ═══ SPLASH ═══ */
+#splash {
+  position: fixed; inset: 0; z-index: 999;
+  background: var(--bg);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 16px;
+  animation: splashOut 0.4s ease 1.8s forwards;
+}
+@keyframes splashOut { to { opacity: 0; pointer-events: none; } }
+
+.splash-logo {
+  width: 72px; height: 72px;
+  background: var(--green-bg);
+  border: 1.5px solid var(--green);
+  border-radius: 20px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32px;
+}
+
+.splash-title {
+  font-family: var(--mono);
+  font-size: 18px; font-weight: 500;
+  color: var(--text);
+  letter-spacing: 0.05em;
+}
+.splash-sub {
+  font-size: 12px; color: var(--text2);
+  letter-spacing: 0.08em; text-transform: uppercase;
+}
+.splash-bar {
+  width: 120px; height: 2px;
+  background: var(--bg3);
+  border-radius: 2px; overflow: hidden;
+  margin-top: 8px;
+}
+.splash-bar-fill {
+  height: 100%; width: 0;
+  background: var(--blue);
+  animation: barFill 1.4s ease forwards;
+}
+@keyframes barFill { to { width: 100%; } }
+
+/* ═══ APP SHELL ═══ */
+#app {
+  position: fixed; inset: 0;
+  display: flex; flex-direction: column;
+}
+
+/* ═══ HEADER ═══ */
+.app-header {
+  flex-shrink: 0;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 18px 10px;
+  padding-top: calc(12px + env(safe-area-inset-top, 0px));
+  display: flex; align-items: center; justify-content: space-between;
+}
+.app-header-left { display: flex; align-items: center; gap: 10px; }
+.app-icon {
+  width: 34px; height: 34px;
+  background: var(--bg4);
+  border: 1px solid var(--border2);
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+}
+.app-title { font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--green); }
+.app-subtitle { font-size: 10px; color: var(--text2); letter-spacing: 0.06em; text-transform: uppercase; margin-top: 1px; }
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--green);
+}
+
+/* ═══ SCREENS ═══ */
+.screens { flex: 1; overflow: hidden; position: relative; }
+.screen {
+  position: absolute; inset: 0;
+  overflow-y: auto; overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px 16px calc(var(--nav-h) + var(--safe-b) + 16px);
+  opacity: 0; pointer-events: none;
+  transform: translateY(12px);
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+.screen.active {
+  opacity: 1; pointer-events: all;
+  transform: translateY(0);
+}
+
+/* ═══ BOTTOM NAV ═══ */
+.bottom-nav {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: calc(var(--nav-h) + var(--safe-b));
+  padding-bottom: var(--safe-b);
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  display: flex; align-items: flex-start;
+  padding-top: 8px;
+  z-index: 100;
+}
+.nav-item {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; gap: 4px;
+  cursor: pointer;
+  padding: 4px 0;
+  transition: all 0.18s ease;
+}
+.nav-icon {
+  font-size: 22px;
+  transition: transform 0.18s ease;
+}
+.nav-label {
+  font-size: 9.5px; font-weight: 500;
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text3);
+  transition: color 0.18s ease;
+}
+.nav-item.active .nav-label { color: var(--blue); }
+.nav-item.active .nav-icon { transform: scale(1.15) translateY(-2px); }
+.nav-item.active .nav-dot { background: var(--blue); }
+.nav-dot {
+  width: 4px; height: 4px; border-radius: 50%;
+  background: transparent;
+  margin-top: 2px;
+  transition: background 0.18s ease;
+}
+
+/* ═══ COMPONENTS ═══ */
+.sec-label {
+  font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--text2);
+  margin: 0 0 10px;
+}
+.mt { margin-top: 20px; }
+
+.card {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+.card-tight { padding: 10px 14px; }
+
+.badge {
+  display: inline-flex; align-items: center;
+  padding: 2px 8px; border-radius: 20px;
+  font-size: 10px; font-weight: 600;
+  font-family: var(--mono);
+}
+.b-green { background: var(--green-bg); color: var(--green); }
+.b-amber { background: var(--amber-bg); color: var(--amber); }
+.b-red   { background: var(--red-bg);   color: var(--red); }
+.b-blue  { background: var(--blue-bg);  color: var(--blue); }
+
+.notice {
+  border-radius: 10px; padding: 10px 13px;
+  font-size: 12.5px; line-height: 1.6;
+  margin-bottom: 10px;
+}
+.n-green { background: var(--green-bg); border-left: 3px solid var(--green); color: #8ecfac; }
+.n-amber { background: var(--amber-bg); border-left: 3px solid var(--amber); color: #f5d080; }
+.n-red   { background: var(--red-bg);   border-left: 3px solid var(--red);   color: #f0a0a0; }
+.n-blue  { background: var(--blue-bg);  border-left: 3px solid var(--blue);  color: #a0caff; }
+
+.divider { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+
+/* ═══ SCREEN: GUIA ═══ */
+.hero-card {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: 16px;
+  padding: 18px;
+  margin-bottom: 16px;
+}
+.hero-title { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 4px; }
+.hero-sub { font-size: 12px; color: var(--text2); }
+
+.topic-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.topic-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 12px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  active: scale(0.97);
+}
+.topic-card:active { transform: scale(0.96); background: var(--bg4); }
+.topic-icon { font-size: 22px; margin-bottom: 6px; }
+.topic-name { font-size: 12px; font-weight: 600; margin-bottom: 2px; }
+.topic-desc { font-size: 10.5px; color: var(--text2); line-height: 1.4; }
+
+/* detail panel */
+.detail-panel {
+  position: absolute; inset: 0;
+  background: var(--bg);
+  z-index: 50;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 0 calc(var(--nav-h) + 20px);
+  transform: translateX(100%);
+  transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+}
+.detail-panel.open { transform: translateX(0); }
+.detail-header {
+  position: sticky; top: 0; z-index: 10;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 16px;
+  display: flex; align-items: center; gap: 12px;
+}
+.back-btn {
+  width: 34px; height: 34px;
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 9px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  transition: background 0.15s;
+}
+.back-btn:active { background: var(--surface); }
+.detail-title { font-size: 15px; font-weight: 600; }
+.detail-body { padding: 16px; }
+
+.step-item {
+  display: flex; gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.step-item:last-child { border-bottom: none; }
+.step-num {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--bg4); border: 1px solid var(--border2);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  color: var(--text2); flex-shrink: 0; margin-top: 1px;
+}
+.step-text { font-size: 13px; line-height: 1.6; }
+.step-text strong { color: var(--blue); font-weight: 500; }
+
+/* ═══ SCREEN: CALCULADORA ═══ */
+.calc-display {
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 14px;
+  font-family: var(--mono);
+}
+.calc-result-label { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 4px; }
+.calc-result-value { font-size: 28px; font-weight: 600; }
+.calc-result-unit { font-size: 13px; color: var(--text2); margin-left: 4px; }
+
+.input-group { margin-bottom: 12px; }
+.input-label {
+  font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .07em;
+  color: var(--text2); margin-bottom: 6px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.input-hint { font-size: 10px; color: var(--text3); font-weight: 400; text-transform: none; letter-spacing: 0; }
+.field-input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: 10px;
+  padding: 11px 14px;
+  font-size: 16px; /* prevent iOS zoom */
+  font-family: var(--mono);
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.field-input:focus { border-color: var(--blue); }
+.field-input::placeholder { color: var(--text3); }
+
+.result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.result-item {
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 12px; padding: 12px 14px;
+}
+.result-item.ok { border-color: rgba(60,179,113,0.3); }
+.result-item.warn { border-color: rgba(240,165,0,0.25); }
+.result-item.bad { border-color: rgba(240,69,69,0.25); }
+.ri-label { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 4px; }
+.ri-value { font-size: 18px; font-weight: 700; font-family: var(--mono); }
+.ri-value.ok  { color: var(--green); }
+.ri-value.warn { color: var(--amber); }
+.ri-value.bad { color: var(--red); }
+.ri-note { font-size: 10px; color: var(--text2); margin-top: 2px; }
+
+.calc-btn {
+  width: 100%; padding: 14px;
+  background: var(--blue);
+  border: none; border-radius: 12px;
+  font-size: 14px; font-weight: 600;
+  font-family: var(--sans);
+  color: #fff;
+  cursor: pointer;
+  margin-top: 4px;
+  transition: opacity 0.15s, transform 0.15s;
+}
+.calc-btn:active { opacity: 0.85; transform: scale(0.98); }
+
+/* ═══ SCREEN: OCORRÊNCIAS ═══ */
+.occ-empty {
+  text-align: center; padding: 48px 24px;
+  color: var(--text2);
+}
+.occ-empty-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.4; }
+.occ-empty-text { font-size: 14px; line-height: 1.6; }
+
+.occ-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 10px;
+  display: flex; gap: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.occ-card:active { background: var(--bg4); }
+.occ-thumb {
+  width: 56px; height: 56px;
+  border-radius: 9px;
+  background: var(--bg4);
+  object-fit: cover;
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px;
+  border: 1px solid var(--border);
+}
+.occ-thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 9px; }
+.occ-info { flex: 1; min-width: 0; }
+.occ-title { font-size: 13px; font-weight: 600; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.occ-meta { font-size: 11px; color: var(--text2); margin-bottom: 4px; }
+.occ-note { font-size: 12px; color: var(--text2); line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+.fab {
+  position: fixed;
+  bottom: calc(var(--nav-h) + var(--safe-b) + 16px);
+  right: 16px;
+  width: 56px; height: 56px;
+  background: var(--blue);
+  border: none; border-radius: 16px;
+  font-size: 24px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+  z-index: 80;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.fab:active { transform: scale(0.93); box-shadow: 0 2px 10px rgba(31,219,138,0.2); }
+
+/* add form */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,0.7);
+  display: flex; align-items: flex-end;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.modal-overlay.open { opacity: 1; pointer-events: all; }
+.modal-sheet {
+  width: 100%;
+  background: var(--bg2);
+  border-top: 1px solid var(--border2);
+  border-radius: 20px 20px 0 0;
+  padding: 20px 18px calc(20px + var(--safe-b));
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.modal-overlay.open .modal-sheet { transform: translateY(0); }
+.modal-handle {
+  width: 36px; height: 4px;
+  background: var(--border2);
+  border-radius: 2px;
+  margin: 0 auto 18px;
+}
+.modal-title { font-size: 16px; font-weight: 700; margin-bottom: 16px; }
+
+.photo-picker {
+  width: 100%; height: 140px;
+  background: var(--bg3);
+  border: 2px dashed var(--border2);
+  border-radius: 14px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 8px;
+  cursor: pointer; margin-bottom: 14px;
+  transition: border-color 0.15s, background 0.15s;
+  position: relative; overflow: hidden;
+}
+.photo-picker:active { border-color: var(--green); background: var(--green-bg); }
+.photo-picker input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.photo-picker-icon { font-size: 32px; }
+.photo-picker-text { font-size: 13px; color: var(--text2); }
+.photo-preview {
+  width: 100%; height: 140px;
+  border-radius: 14px; object-fit: cover;
+  margin-bottom: 14px;
+  display: none;
+}
+
+.severity-row { display: flex; gap: 8px; margin-bottom: 14px; }
+.sev-btn {
+  flex: 1; padding: 9px 6px;
+  border-radius: 10px; border: 1px solid var(--border);
+  background: var(--bg3);
+  font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all 0.15s;
+  font-family: var(--sans);
+  color: var(--text2);
+  text-align: center;
+}
+.sev-btn.sel-info   { background: var(--blue-bg);  border-color: var(--blue);  color: var(--blue); }
+.sev-btn.sel-warn   { background: var(--amber-bg); border-color: var(--amber); color: var(--amber); }
+.sev-btn.sel-crit   { background: var(--red-bg);   border-color: var(--red);   color: var(--red); }
+
+.save-btn {
+  width: 100%; padding: 14px;
+  background: var(--blue); border: none; border-radius: 12px;
+  font-size: 14px; font-weight: 600; font-family: var(--sans);
+  color: #fff; cursor: pointer; margin-top: 4px;
+  transition: opacity 0.15s;
+}
+.save-btn:active { opacity: 0.85; }
+
+/* view detail modal */
+.occ-detail {
+  position: fixed; inset: 0; z-index: 200;
+  background: var(--bg);
+  transform: translateY(100%);
+  transition: transform 0.28s cubic-bezier(0.4,0,0.2,1);
+  overflow-y: auto;
+  padding-bottom: 32px;
+}
+.occ-detail.open { transform: translateY(0); }
+.occ-detail-header {
+  position: sticky; top: 0;
+  background: var(--bg2); border-bottom: 1px solid var(--border);
+  padding: 14px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+  z-index: 10;
+}
+.occ-detail-img { width: 100%; max-height: 260px; object-fit: cover; display: block; }
+.occ-detail-body { padding: 16px; }
+.delete-btn {
+  background: var(--red-bg); border: 1px solid rgba(240,69,69,0.3);
+  color: var(--red); border-radius: 9px;
+  padding: 7px 14px; font-size: 12px; font-weight: 600;
+  cursor: pointer; font-family: var(--sans);
+  transition: opacity 0.15s;
+}
+.delete-btn:active { opacity: 0.7; }
+
+/* ═══ INSTALL BANNER ═══ */
+.install-banner {
+  position: fixed; bottom: calc(var(--nav-h) + var(--safe-b) + 12px);
+  left: 12px; right: 12px; z-index: 300;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: none; align-items: center; gap: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  animation: slideUp 0.3s ease;
+}
+@keyframes slideUp { from { transform: translateY(20px); opacity: 0; } }
+.install-banner-icon { font-size: 28px; flex-shrink: 0; }
+.install-banner-text { flex: 1; }
+.install-banner-title { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+.install-banner-sub { font-size: 11px; color: var(--text2); }
+.install-btn {
+  background: var(--blue); border: none; border-radius: 9px;
+  padding: 8px 14px; font-size: 12px; font-weight: 600;
+  font-family: var(--sans); color: #fff;
+  cursor: pointer; white-space: nowrap;
+  transition: opacity 0.15s;
+}
+.install-btn:active { opacity: 0.8; }
+.dismiss-btn {
+  background: none; border: none; color: var(--text3);
+  font-size: 18px; cursor: pointer; padding: 4px; flex-shrink: 0;
+}
+
+.search-bar {
+  position: relative; margin-bottom: 14px;
+}
+.search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 14px; }
+.search-input {
+  width: 100%;
+  background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: 10px;
+  padding: 10px 14px 10px 36px;
+  font-size: 16px; font-family: var(--sans);
+  color: var(--text); outline: none;
+  transition: border-color 0.15s;
+}
+.search-input:focus { border-color: var(--blue); }
+.search-input::placeholder { color: var(--text3); font-size: 14px; }
+
+.term-card {
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px;
+  margin-bottom: 8px; cursor: pointer;
+  transition: background 0.15s;
+}
+.term-card:active { background: var(--bg4); }
+.term-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.term-name { font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--green); }
+.term-body { font-size: 12.5px; line-height: 1.65; color: var(--text2); overflow: hidden; max-height: 3.6em; transition: max-height 0.3s ease; }
+.term-body.expanded { max-height: 400px; color: var(--text); }
+.term-expand { font-size: 14px; color: var(--text3); transition: transform 0.2s; flex-shrink: 0; }
+.term-card.open .term-expand { transform: rotate(180deg); }
+.term-detail { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); display: none; }
+.term-card.open .term-detail { display: block; }
+.term-detail .notice { margin-bottom: 0; }
+</style>
+</head>
+<body>
+
+<!-- SPLASH -->
+<div id="splash">
+  <div class="splash-logo">🔌</div>
+  <div class="splash-title">FieldConnex</div>
+  <div class="splash-sub">Diagnóstico · DM-AM</div>
+  <div class="splash-bar"><div class="splash-bar-fill"></div></div>
+</div>
+
+<!-- APP -->
+<div id="app">
+
+  <!-- HEADER -->
+  <div class="app-header">
+    <div class="app-header-left">
+      <div class="app-icon">🔌</div>
+      <div>
+        <div class="app-title">FieldConnex</div>
+        <div class="app-subtitle">DM-AM · Diagnóstico de Campo</div>
+      </div>
+    </div>
+    <div class="status-dot"></div>
+  </div>
+
+  <!-- SCREENS -->
+  <div class="screens">
+
+    <!-- ─── SCREEN: GUIA ─── -->
+    <div id="screen-guia" class="screen active">
+
+      <div class="hero-card">
+        <div class="hero-title">Guia de Diagnóstico</div>
+        <div class="hero-sub">FF H1 &amp; PROFIBUS PA · Pepperl+Fuchs</div>
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+          <span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;background:var(--bg4);border:0.5px solid var(--border2);border-radius:6px;padding:3px 9px;color:var(--text2)"><span style="width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block"></span>Normal</span>
+          <span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;background:var(--bg4);border:0.5px solid var(--border2);border-radius:6px;padding:3px 9px;color:var(--text2)"><span style="width:7px;height:7px;border-radius:50%;background:var(--amber);display:inline-block"></span>Atenção</span>
+          <span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;background:var(--bg4);border:0.5px solid var(--border2);border-radius:6px;padding:3px 9px;color:var(--text2)"><span style="width:7px;height:7px;border-radius:50%;background:var(--red);display:inline-block"></span>Alarme</span>
+        </div>
+      </div>
+
+      <div class="sec-label">Acesso rápido</div>
+      <div class="topic-grid">
+        <div class="topic-card" onclick="openDetail('conexao')">
+          <div class="topic-icon">🔗</div>
+          <div class="topic-name">Conexão</div>
+          <div class="topic-desc">Ligar DM-AM ao segmento</div>
+        </div>
+        <div class="topic-card" onclick="openDetail('monitoring')">
+          <div class="topic-icon">📊</div>
+          <div class="topic-name">Segment Monitor</div>
+          <div class="topic-desc">Monitorar em tempo real</div>
+        </div>
+        <div class="topic-card" onclick="openDetail('oscilloscope')">
+          <div class="topic-icon">🔬</div>
+          <div class="topic-name">Osciloscópio</div>
+          <div class="topic-desc">Analisar forma de onda</div>
+        </div>
+        <div class="topic-card" onclick="openDetail('intermitente')">
+          <div class="topic-icon">👻</div>
+          <div class="topic-name">Intermitente</div>
+          <div class="topic-desc">Caçar falha que some</div>
+        </div>
+        <div class="topic-card" onclick="openDetail('snapshot')">
+          <div class="topic-icon">📸</div>
+          <div class="topic-name">Snapshot</div>
+          <div class="topic-desc">Gerar relatório</div>
+        </div>
+        <div class="topic-card" onclick="openDetail('troubleshooting')">
+          <div class="topic-icon">🛠️</div>
+          <div class="topic-name">Troubleshoot</div>
+          <div class="topic-desc">Problemas comuns</div>
+        </div>
+      </div>
+
+      <div class="sec-label mt">Limites IEC 61158-2</div>
+      <div class="card card-tight">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <tr style="border-bottom:1px solid var(--border)">
+            <th style="text-align:left;padding:6px 4px;font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.06em">Parâmetro</th>
+            <th style="text-align:center;padding:6px 4px;font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.06em">Normal</th>
+            <th style="text-align:center;padding:6px 4px;font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.06em">Out of Spec</th>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:7px 4px;font-weight:600">Signal Level</td>
+            <td style="text-align:center;font-family:var(--mono);font-size:11px;color:var(--green)">200–1200 mV</td>
+            <td style="text-align:center;font-family:var(--mono);font-size:11px;color:var(--red)">&lt;150 ou &gt;1375</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:7px 4px;font-weight:600">Noise</td>
+            <td style="text-align:center;font-family:var(--mono);font-size:11px;color:var(--green)">&lt;100 mV</td>
+            <td style="text-align:center;font-family:var(--mono);font-size:11px;color:var(--red)">&gt;100 mV</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:7px 4px;font-weight:600">Jitter</td>
+            <td style="text-align:center;font-family:var(--mono);font-size:11px;color:var(--green)">&lt;2,4 µs</td>
+            <td style="text-align:center;font-family:var(--mono);font-size:11px;color:var(--red)">&gt;3,2 µs</td>
+          </tr>
+          <tr>
+            <td style="padding:7px 4px;font-weight:600">Tensão Seg.</td>
+            <td style="text-align:center;font-family:var(--mono);font-size:11px;color:var(--green)">9–32 V</td>
+            <td style="text-align:center;font-family:var(--mono);font-size:11px;color:var(--red)">&lt;9 ou &gt;32 V</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- ─── SCREEN: CALC ─── -->
+    <div id="screen-calc" class="screen">
+
+      <div class="sec-label">Calculadora de Segmento</div>
+      <div class="notice n-blue" style="margin-bottom:14px">Informe os dados do seu segmento para verificar se está dentro das especificações IEC 61158-2.</div>
+
+      <div class="card">
+        <div class="input-group">
+          <div class="input-label">
+            Tensão no segmento (V)
+            <span class="input-hint">medido no terminal</span>
+          </div>
+          <input class="field-input" id="inp-tensao" type="number" inputmode="decimal" placeholder="ex: 28.5" step="0.1" min="0" max="50" oninput="calcular()">
+        </div>
+        <div class="input-group">
+          <div class="input-label">
+            Corrente total (mA)
+            <span class="input-hint">soma de todos os devices</span>
+          </div>
+          <input class="field-input" id="inp-corrente" type="number" inputmode="decimal" placeholder="ex: 280" step="1" min="0" oninput="calcular()">
+        </div>
+        <div class="input-group">
+          <div class="input-label">
+            Nº de devices no segmento
+            <span class="input-hint">incluindo devices de controle</span>
+          </div>
+          <input class="field-input" id="inp-devices" type="number" inputmode="numeric" placeholder="ex: 12" step="1" min="1" max="32" oninput="calcular()">
+        </div>
+        <div class="input-group" style="margin-bottom:0">
+          <div class="input-label">
+            Corrente disponível no PSU (mA)
+            <span class="input-hint">ver datasheet do PSU</span>
+          </div>
+          <input class="field-input" id="inp-psu" type="number" inputmode="decimal" placeholder="ex: 500" step="10" min="0" oninput="calcular()">
+        </div>
+      </div>
+
+      <div id="calc-results" style="display:none">
+        <div class="sec-label mt">Resultado</div>
+        <div class="result-grid" id="result-grid"></div>
+        <div id="calc-notice" style="margin-top:10px"></div>
+      </div>
+
+      <div id="calc-placeholder" class="card" style="text-align:center;padding:24px;color:var(--text2)">
+        <div style="font-size:32px;margin-bottom:8px">🧮</div>
+        <div style="font-size:13px">Preencha os campos acima para ver o resultado</div>
+      </div>
+
+    </div>
+
+    <!-- ─── SCREEN: OCORRÊNCIAS ─── -->
+    <div id="screen-occ" class="screen">
+      <div class="sec-label">Registro de Ocorrências</div>
+      <div id="occ-list"></div>
+    </div>
+
+    <!-- ─── SCREEN: TERMOS ─── -->
+    <div id="screen-termos" class="screen">
+      <div class="sec-label">Glossário Técnico</div>
+      <div class="search-bar">
+        <span class="search-icon">🔍</span>
+        <input class="search-input" id="term-search" type="search" placeholder="Buscar… ex: jitter, CRC, PSU" oninput="searchTerms()">
+      </div>
+      <div id="terms-list"></div>
+    </div>
+
+  </div><!-- /screens -->
+
+  <!-- DETAIL PANELS (inside screens overlay) -->
+  <div id="detail-panel" class="detail-panel">
+    <div class="detail-header">
+      <div class="back-btn" onclick="closeDetail()">←</div>
+      <div class="detail-title" id="detail-panel-title"></div>
+    </div>
+    <div class="detail-body" id="detail-panel-body"></div>
+  </div>
+
+  <!-- FAB (ocorrências) -->
+  <button class="fab" id="fab-occ" onclick="openAddOcc()" style="display:none">📷</button>
+
+  <!-- BOTTOM NAV -->
+  <nav class="bottom-nav">
+    <div class="nav-item active" onclick="goTo('guia',this)">
+      <div class="nav-icon">🗂️</div>
+      <div class="nav-label">Guia</div>
+      <div class="nav-dot"></div>
+    </div>
+    <div class="nav-item" onclick="goTo('calc',this)">
+      <div class="nav-icon">🧮</div>
+      <div class="nav-label">Calcular</div>
+      <div class="nav-dot"></div>
+    </div>
+    <div class="nav-item" onclick="goTo('occ',this)">
+      <div class="nav-icon">📋</div>
+      <div class="nav-label">Ocorrências</div>
+      <div class="nav-dot"></div>
+    </div>
+    <div class="nav-item" onclick="goTo('termos',this)">
+      <div class="nav-icon">📖</div>
+      <div class="nav-label">Termos</div>
+      <div class="nav-dot"></div>
+    </div>
+  </nav>
+
+</div><!-- /app -->
+
+<!-- ADD OCC MODAL -->
+<div class="modal-overlay" id="add-modal" onclick="handleModalClick(event)">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Nova Ocorrência</div>
+
+    <div class="input-group">
+      <div class="input-label">Título / Descrição curta</div>
+      <input class="field-input" id="occ-title" type="text" placeholder="ex: Signal Level alto no Seg01">
+    </div>
+
+    <div class="input-group">
+      <div class="input-label">Tag do segmento</div>
+      <input class="field-input" id="occ-tag" type="text" placeholder="ex: SEG-01_AREA-A">
+    </div>
+
+    <div class="input-label">Severidade</div>
+    <div class="severity-row">
+      <button class="sev-btn" onclick="selSev(this,'info')">ℹ️ Info</button>
+      <button class="sev-btn" onclick="selSev(this,'warn')">⚠️ Atenção</button>
+      <button class="sev-btn" onclick="selSev(this,'crit')">🔴 Crítico</button>
+    </div>
+
+    <div class="input-label">Foto</div>
+    <div class="photo-picker" id="photo-picker" onclick="triggerPhoto()">
+      <div class="photo-picker-icon">📷</div>
+      <div class="photo-picker-text">Toque para tirar foto ou escolher da galeria</div>
+      <input type="file" id="photo-input" accept="image/*" capture="environment" onchange="handlePhoto(event)" style="position:absolute;inset:0;opacity:0;cursor:pointer">
+    </div>
+    <img id="photo-preview" class="photo-preview" alt="">
+
+    <div class="input-group">
+      <div class="input-label">Anotação</div>
+      <textarea class="field-input" id="occ-note" rows="3" placeholder="Descreva o que foi observado, ação tomada..." style="resize:none;line-height:1.5;font-size:14px"></textarea>
+    </div>
+
+    <button class="save-btn" onclick="saveOcc()">💾 Salvar Ocorrência</button>
+  </div>
+</div>
+
+<!-- OCC DETAIL MODAL -->
+<div class="occ-detail" id="occ-detail">
+  <div class="occ-detail-header">
+    <div class="back-btn" onclick="closeOccDetail()">←</div>
+    <div style="font-size:14px;font-weight:600" id="ocd-title"></div>
+    <button class="delete-btn" onclick="deleteOcc()">🗑 Apagar</button>
+  </div>
+  <img id="ocd-img" class="occ-detail-img" alt="" style="display:none">
+  <div class="occ-detail-body">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px" id="ocd-badges"></div>
+    <div style="font-size:13px;line-height:1.7;color:var(--text2)" id="ocd-note"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════
+// DATA
+// ═══════════════════════════════
+
+const DETAILS = {
+  conexao: {
+    title: '🔗 Conexão do DM-AM',
+    steps: [
+      { t: 'Conectar o cabo fieldbus ao segmento', d: 'Pontos de teste ou cabo direto nos bornes + / − / Shield' },
+      { t: 'Encaixar o conector no DM-AM', d: 'Respeitar polaridade: + vermelho, − preto, Shield verde' },
+      { t: 'Conectar USB ao notebook', d: 'Cabo USB 2.0 fornecido no kit — mínimo 150 mA na porta' },
+      { t: 'LED PWR acende vermelho', d: 'Driver instalado automaticamente pelo Windows (Plug & Play)' },
+      { t: 'Verificar LED COM/ERR', d: 'Verde = segmento OK · Piscando vermelho = alarme presente' },
+      { t: 'Abrir PACTware + FDS rodando', d: 'FDS deve estar com ícone verde na barra de tarefas do Windows' },
+      { t: 'Botão direito DM-AM → Connect', d: 'O DM-AM aparece na árvore: PC HOST → FDS → DM-AM' },
+    ]
+  },
+  monitoring: {
+    title: '📊 Segment Monitoring',
+    steps: [
+      { t: 'Botão direito DM-AM no projeto', d: '' },
+      { t: 'Additional functions → Segment Monitoring', d: 'A janela abre com coleta automática em tempo real' },
+      { t: 'Ativar Show Wizard', d: 'Exibe barras coloridas de qualidade ao lado de cada valor' },
+      { t: 'Verificar Segment Data', d: 'Tensão, Corrente, DC Unbalance, Noise, Jitter' },
+      { t: 'Verificar Field Device Data', d: 'Signal Level, Noise e Jitter individual de cada device' },
+      { t: 'Verde = OK · Cinza = Good · Amarelo = Out of Spec', d: 'Qualquer amarelo precisa de investigação' },
+    ]
+  },
+  oscilloscope: {
+    title: '🔬 Fieldbus Oscilloscope',
+    steps: [
+      { t: 'Botão direito DM-AM → Additional functions', d: '' },
+      { t: 'Selecionar Fieldbus Oscilloscope', d: '' },
+      { t: 'Configurar Recording Length', d: 'Default 32.768 ms — aumentar para eventos raros' },
+      { t: 'Selecionar Trigger Event', d: 'CRC Error, Framing Error, Signal Level, Missing Token…' },
+      { t: 'Ajustar Trigger Timeout para Infinite', d: 'O osciloscópio fica aguardando até o evento ocorrer' },
+      { t: 'Clicar Start → aguardar "Triggered!"', d: '' },
+      { t: 'Analisar e salvar: Save As', d: 'Nome sugerido: Seg01_CRCError_DD-MM-AAAA_HHhMM' },
+    ]
+  },
+  intermitente: {
+    title: '👻 Capturar Evento Intermitente',
+    steps: [
+      { t: 'Checar Diagnostics — que alarme está aparecendo?', d: 'CRC Error → trigger CRC | Device sumindo → Missing Response | Spike → Signal Level' },
+      { t: 'Abrir Fieldbus Oscilloscope', d: 'Botão direito DM-AM → Additional functions → Fieldbus Oscilloscope' },
+      { t: 'Trigger Event = CRC Error (ou o evento do alarme)', d: 'Para device sumindo: Missing Token Usage (FF) ou Missing Response (PA) + Trigger Address = endereço do device' },
+      { t: 'Trigger Timeout = Infinite', d: 'O osciloscópio não para sozinho — fica esperando até o evento' },
+      { t: 'Pretrigger Time = máximo', d: 'Para ver o que acontecia no barramento antes do problema' },
+      { t: 'Clicar Start → aguardar sem fechar o PACTware', d: 'Pode levar horas — deixar notebook conectado e ligado' },
+      { t: 'Quando "Triggered!" aparecer → analisar a captura', d: 'Ver o endereço do device no momento do erro' },
+      { t: 'Save As para salvar o arquivo .osc', d: 'Cruzar horário com o histórico no Diagnostics' },
+      { t: 'Mesmo device em todos os erros? → device causador', d: 'Desconectar do spur e monitorar — se erros somem, substituir o device' },
+    ]
+  },
+  snapshot: {
+    title: '📸 Criar Snapshot / Relatório',
+    steps: [
+      { t: 'Abrir Segment Monitoring', d: 'Botão direito DM-AM → Additional functions → Segment Monitoring' },
+      { t: 'Aguardar valores estabilizarem', d: 'Tipicamente 30–60 segundos com o segmento estável' },
+      { t: 'Clicar em Create Snapshot', d: 'Barra de progresso captura todos os devices um a um' },
+      { t: 'Dar nome ao relatório', d: 'Ex: Seg01_PlantaA_Jan2025 — sem espaços ou caracteres especiais' },
+      { t: 'Clicar Save', d: 'Abre automaticamente o Snapshot Explorer' },
+      { t: 'Snapshot Explorer → selecionar relatório', d: 'Botão direito DM-AM → Additional functions → Snapshot Explorer' },
+      { t: 'Exportar como PDF, Excel ou DMS', d: 'PDF para arquivar/enviar · Excel para comparar valores · DMS para suporte P+F' },
+    ]
+  },
+  troubleshooting: {
+    title: '🛠️ Problemas Comuns',
+    steps: [
+      { t: 'LED PWR apagado após USB', d: 'Notebook não fornece 150 mA → usar hub USB com fonte externa' },
+      { t: 'DM-AM não aparece no PACTware', d: 'FDS não está rodando → verificar ícone verde na barra de tarefas · reconectar USB · atualizar device catalog' },
+      { t: 'Sem conectividade com FDS', d: 'Firewall do Windows bloqueando → Painel de Controle → Firewall → Permitir app FDS' },
+      { t: 'Signal Level HIGH', d: 'Falta 1 terminador ou cabo rompido → verificar terminadores nas extremidades do trunk' },
+      { t: 'Signal Level LOW', d: 'Terminadores em excesso ou umidade no cabo → contar terminadores · inspecionar caixas de junção' },
+      { t: 'Noise HIGH', d: 'Aterramento incorreto ou interferência → verificar blindagem · afastar de cabos de potência' },
+      { t: 'DC Unbalance alto', d: 'Curto polo para shield → desconectar devices um a um para isolar causador' },
+    ]
+  }
+};
+
+const TERMS = [
+  { name:'Signal Level', cat:'Physical Layer', range:'200–1200 mV', body:'Amplitude do sinal digital no barramento em milivolts. Parâmetro mais crítico — garante que todos os devices leiam os dados corretamente.', detail:'Alto (>1200 mV): falta um terminador. Baixo (<200 mV): terminadores em excesso ou umidade no cabo.', type:'warn' },
+  { name:'Noise', cat:'Physical Layer', range:'< 100 mV', body:'Tensão parasita no barramento quando nenhum device transmite. Causado por campos eletromagnéticos externos: motores, inversores, fontes chaveadas.', detail:'Acima de 100 mV: verificar aterramento, blindagem e distância de cabos de potência.', type:'warn' },
+  { name:'Jitter', cat:'Physical Layer', range:'< 2,4 µs', body:'Variação no tempo de chegada dos bits em relação ao esperado. Em FF H1 cada bit dura 32 µs — jitter é o desvio disso.', detail:'Acima de 3,2 µs (Out of Spec IEC): verificar terminadores, tipo de cabo e comprimento do trunk/spurs.', type:'warn' },
+  { name:'DC Unbalance', cat:'Physical Layer', range:'próximo a 0%', body:'Desequilíbrio DC entre os dois pólos do barramento (+ e −) em relação ao shield/terra. Indica umidade, sujeira ou curto parcial.', detail:'Como isolar: desconectar devices um a um. Quando DC Unbalance zerar, o último device é o causador.', type:'crit' },
+  { name:'Terminador', cat:'Physical Layer', range:'exatamente 2', body:'Resistor RC de 100 Ω nas extremidades do trunk. Absorve o sinal evitando reflexões. Um segmento deve ter EXATAMENTE 2 terminadores — um em cada ponta.', detail:'1 terminador: Signal Level alto. 3+: Signal Level baixo. 0: comunicação impossível.', type:'warn' },
+  { name:'Trunk', cat:'Physical Layer', range:'', body:'Cabo principal do segmento — a espinha dorsal que vai da sala de controle até o campo. Os terminadores ficam nas duas extremidades do trunk.', detail:'', type:'' },
+  { name:'Spur', cat:'Physical Layer', range:'máx. 120 m', body:'Cabo de derivação que sai do trunk até o field device. Não tem terminador. Comprimento máximo 120 m para FF H1.', detail:'', type:'' },
+  { name:'CRC Error', cat:'Comunicação', range:'', body:'Cyclic Redundancy Check — frame corrompido em trânsito. O receptor detecta que os dados não batem com o checksum enviado.', detail:'Para capturar: osciloscópio com trigger "CRC Error" + Timeout Infinite.', type:'crit' },
+  { name:'Framing Error', cat:'Comunicação', range:'', body:'Erro na estrutura do frame — o receptor não conseguiu sincronizar. Mais grave que CRC Error. Causado por distorção severa ou jitter muito alto.', detail:'', type:'crit' },
+  { name:'Missing Response', cat:'Comunicação', range:'', body:'PROFIBUS PA: o slave não respondeu ao master dentro do slot time. O device foi declarado ausente. Causas: falha, conexão ruim ou interferência no spur.', detail:'Para capturar: trigger "Missing Response" + Trigger Address = endereço do device suspeito.', type:'crit' },
+  { name:'Token / Pass Token', cat:'Comunicação', range:'', body:'FF H1: o LAS passa o "token" para cada device quando é sua vez de transmitir. Se o device não usa o token, é registrado como Missing Token Usage.', detail:'', type:'' },
+  { name:'Polarity', cat:'Comunicação', range:'', body:'FF H1 e PROFIBUS PA são tolerantes à inversão dos pólos + e −. O DM-AM detecta e indica inversão — útil para encontrar erros de fiação no comissionamento.', detail:'', type:'' },
+  { name:'PSU', cat:'Equipamentos', range:'', body:'Power Supply Unit — fonte de alimentação do segmento. Injeta tensão DC (24–32 V) e limita a corrente máxima. Tem impedância de acoplamento interna.', detail:'', type:'' },
+  { name:'FDS', cat:'Equipamentos', range:'', body:'FieldConnex Diagnostic Server — serviço Windows que gerencia a comunicação USB entre o DM-AM e o PACTware. Deve estar rodando (ícone verde na barra de tarefas).', detail:'Se ícone vermelho ou ausente: reiniciar o serviço pelo Gerenciador de Tarefas.', type:'warn' },
+  { name:'PACTware', cat:'Equipamentos', range:'', body:'Software FDT frame — plataforma que hospeda os DTMs. Interface principal para configurar, diagnosticar e monitorar o DM-AM. Versão mínima recomendada: 5.0.', detail:'', type:'' },
+  { name:'DTM', cat:'Equipamentos', range:'', body:'Device Type Manager — "driver" de um instrumento para o PACTware. Cada fabricante disponibiliza o DTM do seu device. O DM-AM tem seu próprio DTM.', detail:'', type:'' },
+  { name:'FF H1', cat:'Protocolo', range:'31,25 kbit/s', body:'FOUNDATION Fieldbus H1 — protocolo digital para instrumentação de processo. Alimentação e comunicação no mesmo par de fios. Até 32 devices por segmento.', detail:'', type:'' },
+  { name:'PROFIBUS PA', cat:'Protocolo', range:'31,25 kbit/s', body:'Process Automation — variante do PROFIBUS para instrumentação. Mesmo Physical Layer que FF H1 (IEC 61158-2). Diferença na camada de aplicação (master/slave).', detail:'', type:'' },
+  { name:'IEC 61158-2', cat:'Protocolo', range:'', body:'Norma internacional que define o Physical Layer do FF H1 e PROFIBUS PA — incluindo os limites de Signal Level, Noise, Jitter e DC Unbalance.', detail:'Quando DM-AM indica "Out of Spec": o valor medido ultrapassou o limite desta norma.', type:'warn' },
+  { name:'LAS', cat:'Protocolo', range:'', body:'Link Active Scheduler — o "mestre" do segmento FF H1. Controla quem transmite e quando, passando o token. Se o LAS falhar, todo o segmento perde comunicação.', detail:'', type:'crit' },
+  { name:'Snapshot', cat:'Diagnóstico', range:'', body:'Fotografia instantânea de todos os parâmetros do segmento. Gera relatório de Physical Layer exportável como PDF, Excel ou DMS.', detail:'', type:'' },
+  { name:'Trigger', cat:'Diagnóstico', range:'', body:'Condição que dispara a captura do osciloscópio. O osciloscópio fica em espera e só grava quando o evento definido ocorre — essencial para eventos intermitentes.', detail:'', type:'' },
+  { name:'DMS', cat:'Diagnóstico', range:'', body:'Formato proprietário Pepperl+Fuchs para exportação de diagnóstico. Ao abrir chamado no suporte P+F, enviar o arquivo .DMS — eles analisam remotamente.', detail:'', type:'' },
+];
+
+// ═══════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════
+
+let currentScreen = 'guia';
+
+function goTo(id, btn) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('screen-' + id).classList.add('active');
+  btn.classList.add('active');
+  currentScreen = id;
+  const fab = document.getElementById('fab-occ');
+  fab.style.display = id === 'occ' ? 'flex' : 'none';
+  if (id === 'occ') renderOccList();
+}
+
+// ═══════════════════════════════
+// DETAIL PANELS
+// ═══════════════════════════════
+
+function openDetail(key) {
+  const d = DETAILS[key];
+  if (!d) return;
+  document.getElementById('detail-panel-title').textContent = d.title;
+  const body = document.getElementById('detail-panel-body');
+  body.innerHTML = '<ul style="list-style:none">' + d.steps.map((s,i) =>
+    `<li class="step-item">
+      <div class="step-num">${i+1}</div>
+      <div class="step-text">
+        <strong>${s.t}</strong>
+        ${s.d ? `<div style="margin-top:3px;font-size:12px;color:var(--text2)">${s.d}</div>` : ''}
+      </div>
+    </li>`
+  ).join('') + '</ul>';
+  document.getElementById('detail-panel').classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('detail-panel').classList.remove('open');
+}
+
+// ═══════════════════════════════
+// CALCULATOR
+// ═══════════════════════════════
+
+function calcular() {
+  const V = parseFloat(document.getElementById('inp-tensao').value);
+  const I = parseFloat(document.getElementById('inp-corrente').value);
+  const N = parseInt(document.getElementById('inp-devices').value);
+  const P = parseFloat(document.getElementById('inp-psu').value);
+
+  if (isNaN(V) && isNaN(I) && isNaN(N) && isNaN(P)) {
+    document.getElementById('calc-results').style.display = 'none';
+    document.getElementById('calc-placeholder').style.display = '';
+    return;
+  }
+
+  document.getElementById('calc-results').style.display = '';
+  document.getElementById('calc-placeholder').style.display = 'none';
+
+  const items = [];
+
+  if (!isNaN(V)) {
+    const ok = V >= 9 && V <= 32;
+    const warn = V >= 9 && V <= 11;
+    items.push({ label:'Tensão', value: V.toFixed(1), unit:'V',
+      status: !ok ? 'bad' : warn ? 'warn' : 'ok',
+      note: !ok ? 'Fora da faixa 9–32 V' : warn ? 'Margem baixa' : 'OK' });
+  }
+
+  if (!isNaN(I) && !isNaN(P)) {
+    const margin = P - I;
+    const pct = ((margin / P) * 100).toFixed(0);
+    items.push({ label:'Margem PSU', value: margin.toFixed(0), unit:'mA',
+      status: margin < 0 ? 'bad' : margin < 50 ? 'warn' : 'ok',
+      note: margin < 0 ? 'PSU sobrecarregado!' : `${pct}% livre` });
+  }
+
+  if (!isNaN(N)) {
+    const ok = N <= 16;
+    const warn2 = N > 16 && N <= 24;
+    items.push({ label:'Devices', value: N, unit:'',
+      status: N > 32 ? 'bad' : warn2 ? 'warn' : 'ok',
+      note: N > 32 ? 'Excede máx. absoluto (32)' : N > 16 ? 'Acima do recomendado' : 'OK' });
+  }
+
+  if (!isNaN(I) && !isNaN(N) && N > 0) {
+    const avg = (I / N).toFixed(1);
+    items.push({ label:'Corrente média', value: avg, unit:'mA/dev',
+      status: parseFloat(avg) > 30 ? 'warn' : 'ok',
+      note: parseFloat(avg) > 30 ? 'Verificar devices de alto consumo' : 'OK' });
+  }
+
+  const grid = document.getElementById('result-grid');
+  grid.innerHTML = items.map(it =>
+    `<div class="result-item ${it.status}">
+      <div class="ri-label">${it.label}</div>
+      <div class="ri-value ${it.status}">${it.value}<span style="font-size:12px;font-weight:400"> ${it.unit}</span></div>
+      <div class="ri-note">${it.note}</div>
+    </div>`
+  ).join('');
+
+  const hasBad = items.some(i => i.status === 'bad');
+  const hasWarn = items.some(i => i.status === 'warn');
+  const noticeEl = document.getElementById('calc-notice');
+  if (hasBad) noticeEl.innerHTML = '<div class="notice n-red">⚠️ Um ou mais parâmetros estão <strong>fora de especificação</strong>. Revisão necessária antes de comissionar.</div>';
+  else if (hasWarn) noticeEl.innerHTML = '<div class="notice n-amber">Atenção em alguns parâmetros. Monitorar de perto durante o comissionamento.</div>';
+  else noticeEl.innerHTML = '<div class="notice n-green">✅ Todos os parâmetros verificados estão dentro da especificação.</div>';
+}
+
+// ═══════════════════════════════
+// OCORRÊNCIAS
+// ═══════════════════════════════
+
+let ocorrencias = JSON.parse(localStorage.getItem('occ_v1') || '[]');
+let currentPhoto = null;
+let selectedSev = 'info';
+let viewingOcc = null;
+
+function saveOccStorage() {
+  localStorage.setItem('occ_v1', JSON.stringify(ocorrencias));
+}
+
+function renderOccList() {
+  const el = document.getElementById('occ-list');
+  if (!ocorrencias.length) {
+    el.innerHTML = `<div class="occ-empty">
+      <div class="occ-empty-icon">📋</div>
+      <div class="occ-empty-text">Nenhuma ocorrência registrada ainda.<br>Toque no botão 📷 para adicionar.</div>
+    </div>`;
+    return;
+  }
+  el.innerHTML = [...ocorrencias].reverse().map((o, ri) => {
+    const i = ocorrencias.length - 1 - ri;
+    const sevColor = o.sev === 'crit' ? 'var(--red)' : o.sev === 'warn' ? 'var(--amber)' : 'var(--blue)';
+    const sevIcon = o.sev === 'crit' ? '🔴' : o.sev === 'warn' ? '⚠️' : 'ℹ️';
+    return `<div class="occ-card" onclick="viewOcc(${i})">
+      <div class="occ-thumb">${o.photo ? `<img src="${o.photo}" alt="">` : '📷'}</div>
+      <div class="occ-info">
+        <div class="occ-title">${sevIcon} ${o.title || 'Sem título'}</div>
+        <div class="occ-meta" style="color:${sevColor}">${o.tag || '—'} · ${o.date}</div>
+        <div class="occ-note">${o.note || 'Sem anotação'}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openAddOcc() {
+  document.getElementById('add-modal').classList.add('open');
+  currentPhoto = null;
+  selectedSev = 'info';
+  document.getElementById('occ-title').value = '';
+  document.getElementById('occ-tag').value = '';
+  document.getElementById('occ-note').value = '';
+  document.getElementById('photo-preview').style.display = 'none';
+  document.getElementById('photo-picker').style.display = 'flex';
+  document.querySelectorAll('.sev-btn').forEach(b => b.className = 'sev-btn');
+}
+
+function handleModalClick(e) {
+  if (e.target === document.getElementById('add-modal')) closeAddOcc();
+}
+
+function closeAddOcc() {
+  document.getElementById('add-modal').classList.remove('open');
+}
+
+function selSev(btn, val) {
+  selectedSev = val;
+  document.querySelectorAll('.sev-btn').forEach(b => b.className = 'sev-btn');
+  btn.classList.add('sel-' + val);
+}
+
+function triggerPhoto() {
+  document.getElementById('photo-input').click();
+}
+
+function handlePhoto(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    currentPhoto = ev.target.result;
+    const prev = document.getElementById('photo-preview');
+    prev.src = currentPhoto;
+    prev.style.display = 'block';
+    document.getElementById('photo-picker').style.display = 'none';
+  };
+  reader.readAsDataURL(file);
+}
+
+function saveOcc() {
+  const title = document.getElementById('occ-title').value.trim();
+  if (!title) { alert('Informe um título para a ocorrência.'); return; }
+  const now = new Date();
+  const date = now.toLocaleDateString('pt-BR') + ' ' + now.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
+  ocorrencias.push({
+    title, sev: selectedSev,
+    tag: document.getElementById('occ-tag').value.trim(),
+    note: document.getElementById('occ-note').value.trim(),
+    photo: currentPhoto,
+    date
+  });
+  saveOccStorage();
+  closeAddOcc();
+  renderOccList();
+}
+
+function viewOcc(i) {
+  const o = ocorrencias[i];
+  viewingOcc = i;
+  document.getElementById('ocd-title').textContent = o.title;
+  const img = document.getElementById('ocd-img');
+  if (o.photo) { img.src = o.photo; img.style.display = 'block'; }
+  else img.style.display = 'none';
+  const sevLabel = {info:'ℹ️ Info', warn:'⚠️ Atenção', crit:'🔴 Crítico'}[o.sev];
+  document.getElementById('ocd-badges').innerHTML =
+    `<span class="badge b-${o.sev === 'crit' ? 'red' : o.sev === 'warn' ? 'amber' : 'blue'}">${sevLabel}</span>` +
+    (o.tag ? `<span class="badge b-green" style="font-family:var(--mono)">${o.tag}</span>` : '') +
+    `<span class="badge" style="background:var(--bg3);color:var(--text2)">${o.date}</span>`;
+  document.getElementById('ocd-note').textContent = o.note || 'Sem anotação.';
+  document.getElementById('occ-detail').classList.add('open');
+}
+
+function closeOccDetail() {
+  document.getElementById('occ-detail').classList.remove('open');
+}
+
+function deleteOcc() {
+  if (!confirm('Apagar esta ocorrência?')) return;
+  ocorrencias.splice(viewingOcc, 1);
+  saveOccStorage();
+  closeOccDetail();
+  renderOccList();
+}
+
+// ═══════════════════════════════
+// TERMS
+// ═══════════════════════════════
+
+function renderTerms(filter) {
+  const q = (filter || '').toLowerCase();
+  const container = document.getElementById('terms-list');
+  const catOrder = ['Physical Layer','Comunicação','Equipamentos','Protocolo','Diagnóstico'];
+  let html = '';
+
+  catOrder.forEach(cat => {
+    const terms = TERMS.filter(t => t.cat === cat && (!q || (t.name + t.body + t.cat).toLowerCase().includes(q)));
+    if (!terms.length) return;
+    html += `<div class="sec-label ${html ? 'mt' : ''}">${cat}</div>`;
+    terms.forEach((t, i) => {
+      const id = `term-${cat}-${i}`;
+      const detailHtml = t.detail
+        ? `<div class="term-detail">
+            <div class="notice n-${t.type === 'crit' ? 'red' : t.type === 'warn' ? 'amber' : 'blue'}" style="margin-bottom:0">
+              ${t.detail}
+            </div>
+          </div>` : '';
+      html += `<div class="term-card" id="${id}" onclick="toggleTerm('${id}')">
+        <div class="term-header">
+          <div>
+            <div class="term-name">${t.name}</div>
+            ${t.range ? `<span class="badge b-green" style="margin-top:4px;display:inline-flex">${t.range}</span>` : ''}
+          </div>
+          <span class="term-expand">⌄</span>
+        </div>
+        <div class="term-body" id="${id}-body">${t.body}</div>
+        ${detailHtml}
+      </div>`;
+    });
+  });
+
+  container.innerHTML = html || '<div style="text-align:center;padding:32px;color:var(--text2)">Nenhum termo encontrado.</div>';
+}
+
+function toggleTerm(id) {
+  const card = document.getElementById(id);
+  const body = document.getElementById(id + '-body');
+  card.classList.toggle('open');
+  body.classList.toggle('expanded');
+}
+
+function searchTerms() {
+  renderTerms(document.getElementById('term-search').value);
+}
+
+// ═══════════════════════════════
+// INIT
+// ═══════════════════════════════
+
+renderTerms();
+renderOccList();
+
+// ═══ PWA: REGISTRAR SERVICE WORKER ═══
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js')
+      .then(reg => console.log('SW registrado:', reg.scope))
+      .catch(err => console.log('SW erro:', err));
+  });
+}
+
+// ═══ PWA: INSTALAR PROMPT ═══
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  showInstallBanner();
+});
+
+function showInstallBanner() {
+  const banner = document.getElementById('install-banner');
+  if (banner) banner.style.display = 'flex';
+}
+
+function installApp() {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.then(choice => {
+    if (choice.outcome === 'accepted') {
+      document.getElementById('install-banner').style.display = 'none';
+    }
+    deferredPrompt = null;
+  });
+}
+
+function dismissBanner() {
+  const banner = document.getElementById('install-banner');
+  if (banner) banner.style.display = 'none';
+}
+</script>
+<!-- INSTALL BANNER -->
+<div class="install-banner" id="install-banner">
+  <div class="install-banner-icon">📲</div>
+  <div class="install-banner-text">
+    <div class="install-banner-title">Instalar como app</div>
+    <div class="install-banner-sub">Funciona offline · ícone na tela inicial</div>
+  </div>
+  <button class="install-btn" onclick="installApp()">Instalar</button>
+  <button class="dismiss-btn" onclick="dismissBanner()">×</button>
+</div>
+
+</body>
+</html>
